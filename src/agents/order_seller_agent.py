@@ -1,8 +1,7 @@
-"""P2: Order & Seller Agent.
+"""P2 Order & Seller Agent using deterministic CSV evidence.
 
-Access: olist_orders_dataset.csv, olist_order_items_dataset.csv,
-olist_sellers_dataset.csv (all reachable via ``OlistDataLoader``).
-Must NOT read payment data — that is Payment Agent's (P4) domain only.
+The merged ``src.tools.order_seller_tool`` can support an optional tool-calling
+demo, while this implementation is the stable submitted decision path.
 """
 
 from __future__ import annotations
@@ -14,8 +13,6 @@ from ..schemas import InputCase, OrderSellerEvidence
 
 
 def _parse_timestamp(value: str | None) -> datetime | None:
-    """Parse an Olist timestamp, preserving missing values as unknown."""
-
     return datetime.fromisoformat(value) if value else None
 
 
@@ -24,13 +21,7 @@ def _unique(values: list[str]) -> tuple[str, ...]:
 
 
 def analyze(case: InputCase, loader: OlistDataLoader) -> OrderSellerEvidence:
-    """Return order/item/seller evidence for ``case.claimed_order_id``.
-
-    This deterministic implementation is the active runtime for the submitted
-    verdict: CSV facts remain reproducible even when no local LLM is running.
-    The separately merged ``src.tools.order_seller_tool`` remains available as
-    an optional audited tool interface for future model-assisted explanation.
-    """
+    """Return verifiable order, item, seller and handoff evidence."""
     order_id = case.claimed_order_id
     order = loader.require_order(order_id)
     items = loader.order_items(order_id)
@@ -46,7 +37,6 @@ def analyze(case: InputCase, loader: OlistDataLoader) -> OrderSellerEvidence:
         item_ids.append(f"{order_id}:{item_id}")
         seller_ids.append(seller_id)
         evidence_ids.append(f"item:{order_id}:{item_id}")
-
         if loader.seller(seller_id) is None:
             raise LookupError(f"Order {order_id} references unknown seller {seller_id}")
         if (

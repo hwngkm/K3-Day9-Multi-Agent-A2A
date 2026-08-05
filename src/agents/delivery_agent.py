@@ -1,4 +1,9 @@
-"""P3 Delivery Agent: deterministic date comparison, no direct model calls."""
+"""P3 Delivery Agent: deterministic date comparison, no direct model calls.
+
+``src.tools.delivery_tool`` is retained as an optional, audited tool-calling
+interface from the team integration.  The submitted decision path remains
+deterministic so it runs without Ollama and preserves verifier-approved output.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +19,6 @@ def _parse_timestamp(value: str | None) -> datetime | None:
 
 def analyze(case: InputCase, loader: OlistDataLoader) -> DeliveryEvidence:
     """Determine late delivery from authoritative Olist timestamps only."""
-
     order_id = case.claimed_order_id
     order = loader.require_order(order_id)
     delivered_at = order["order_delivered_customer_date"] or None

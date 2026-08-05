@@ -1,0 +1,10 @@
+{
+  "models": {
+    "order_seller_agent": {
+      "model": "qwen2.5:7b-instruct",
+      "parameter_size": "7.62B",
+      "framework": "custom Python tool-calling agent",
+      "runtime": "Ollama local"
+    }
+  }
+}

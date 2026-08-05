@@ -1,2 +1,1 @@
-"""LLM-backed domain agents orchestrated by :mod:`src.coordinator`."""
-
+"""Agents package for multi-agent dispute resolution."""

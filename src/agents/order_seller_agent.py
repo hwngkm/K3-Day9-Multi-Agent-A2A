@@ -65,11 +65,6 @@ AGENT_OUTPUT_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {"type": "string"},
         },
-        "evidence_ids": {
-            "type": "array",
-            "items": {"type": "string"},
-            "maxItems": MAX_EVIDENCE_IDS,
-        },
     },
     "required": [
         "order_status",
@@ -77,7 +72,6 @@ AGENT_OUTPUT_SCHEMA: dict[str, Any] = {
         "seller_ids",
         "seller_handoff_late",
         "late_seller_ids",
-        "evidence_ids",
     ],
     "additionalProperties": False,
 }
@@ -90,9 +84,10 @@ issue, responsible-party type, refund, or resolution action.
 Call query_order_seller exactly once with the claimed_order_id. After receiving
 the tool result, select at most five affected item IDs and five seller IDs,
 prioritizing any late item and late seller. Use only IDs present in the tool
-result. Return at most ten evidence IDs. A null tool-level handoff result means
-there is no positive evidence of late handoff, so the handoff boolean in the
-agent contract must be false. Return JSON matching the supplied schema only.
+result. Do not create evidence IDs; deterministic code derives them from your
+verified entity selection. A null tool-level handoff result means there is no
+positive evidence of late handoff, so the handoff boolean in the agent contract
+must be false. Return JSON matching the supplied schema only.
 """
 
 
@@ -255,17 +250,13 @@ def _validated_evidence(
     item_ids = _string_list(output, "item_ids", MAX_ENTITY_IDS)
     seller_ids = _string_list(output, "seller_ids", MAX_ENTITY_IDS)
     late_seller_ids = _string_list(output, "late_seller_ids")
-    evidence_ids = _string_list(output, "evidence_ids", MAX_EVIDENCE_IDS)
 
     valid_item_ids = {item["affected_item_id"] for item in facts["items"]}
     valid_seller_ids = set(facts["seller_ids"])
-    valid_evidence_ids = set(facts["evidence_ids"])
     if not set(item_ids).issubset(valid_item_ids):
         raise AgentOutputError("item_ids contains an ID absent from tool evidence")
     if not set(seller_ids).issubset(valid_seller_ids):
         raise AgentOutputError("seller_ids contains an ID absent from tool evidence")
-    if not set(evidence_ids).issubset(valid_evidence_ids):
-        raise AgentOutputError("evidence_ids contains an ID absent from tool evidence")
     if facts["items"] and (not item_ids or not seller_ids):
         raise AgentOutputError("item_ids and seller_ids cannot omit all known entities")
 
@@ -278,24 +269,36 @@ def _validated_evidence(
     if not set(late_seller_ids).issubset(set(seller_ids)):
         raise AgentOutputError("seller_ids must include every reported late seller")
 
-    order_evidence_id = f"order:{facts['order_id']}"
-    if order_evidence_id not in evidence_ids:
-        raise AgentOutputError("evidence_ids must include the verified order ID")
+    late_item_ids = {
+        item["affected_item_id"]
+        for item in facts["items"]
+        if item["seller_handoff_late"] is True
+    }
     if expected_late:
-        late_item_evidence = {
-            item["item_evidence_id"]
-            for item in facts["items"]
-            if item["seller_handoff_late"] is True
-        }
-        late_seller_evidence = {
-            item["seller_evidence_id"]
-            for item in facts["items"]
-            if item["seller_handoff_late"] is True
-        }
-        if not late_item_evidence.intersection(evidence_ids):
-            raise AgentOutputError("evidence_ids must include a late item")
-        if not late_seller_evidence.intersection(evidence_ids):
-            raise AgentOutputError("evidence_ids must include a late seller")
+        if not late_item_ids.intersection(item_ids):
+            raise AgentOutputError("item_ids must include a late item")
+
+    # Evidence IDs are canonical data products, never copied or invented by the
+    # model. Put rule-relevant late evidence first, then fill remaining slots.
+    prioritized_item_ids = [
+        *[item_id for item_id in item_ids if item_id in late_item_ids],
+        *[item_id for item_id in item_ids if item_id not in late_item_ids],
+    ]
+    prioritized_seller_ids = [
+        *[seller_id for seller_id in seller_ids if seller_id in late_seller_ids],
+        *[seller_id for seller_id in seller_ids if seller_id not in late_seller_ids],
+    ]
+    evidence_ids = tuple(
+        dict.fromkeys(
+            [f"order:{facts['order_id']}"]
+            + [f"item:{item_id}" for item_id in prioritized_item_ids]
+            + [f"seller:{seller_id}" for seller_id in prioritized_seller_ids]
+        )
+    )[:MAX_EVIDENCE_IDS]
+
+    valid_evidence_ids = set(facts["evidence_ids"])
+    if not set(evidence_ids).issubset(valid_evidence_ids):
+        raise AgentOutputError("derived evidence conflicts with tool evidence")
 
     return OrderSellerEvidence(
         order_id=facts["order_id"],

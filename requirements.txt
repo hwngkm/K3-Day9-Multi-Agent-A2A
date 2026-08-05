@@ -1,2 +1,2 @@
-groq>=0.9.0
-python-dotenv>=1.0.0
+# Runtime uses the Python standard library.  Optional Qwen calls use a local
+# Ollama-compatible HTTP endpoint through urllib; no dependency or API key is required.

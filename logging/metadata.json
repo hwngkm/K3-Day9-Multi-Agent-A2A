@@ -1,0 +1,8 @@
+{
+  "model_name": "Qwen/Qwen2.5-3B-Instruct",
+  "model_parameter_count": 3085938688,
+  "model_parameter_size": "3.09B",
+  "framework": "Config-driven task graph with deterministic policy and Evidence Receipt audit",
+  "runtime": "Python 3.12.10 on Windows",
+  "model_usage": "Only the post-verification Explanation Agent may call Qwen; deterministic CSV rules alone decide all submitted facts, money, and actions."
+}

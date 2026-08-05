@@ -91,3 +91,67 @@ Ghi chú: % ở CP2a/CP2b là mốc tối thiểu để biết nhóm có đang t
 
 - Chọn model ≤10B cho các agent (constraint bắt buộc — README mục 9): ví dụ Qwen2.5-7B-Instruct / Llama-3.1-8B qua Ollama hoặc provider bất kỳ. Tên model phải hard-code trong source code (không để trong `.env`), đồng thời ghi lại trong `logging/metadata.json`.
 - P1 tạo `src/schemas.py` trước tiên — đây là gate của CP0, mở khóa cho 5 người còn lại tách việc.
+
+## 6. Runtime mới — Registry, Task Graph và Model Gateway
+
+Runtime không import agent module trực tiếp trong Coordinator. Thay vào đó,
+`config/agents.json` đăng ký agent, callable, stage và dependency; `TaskGraph`
+topo-sort cấu hình này trước khi thực thi.
+
+```
+config/agents.json                 policy/EC_POLICY_V1.json
+        │                                       │
+        ▼                                       ▼
+ AgentRegistry ──> TaskGraph             Policy Agent
+        │              │                       │
+        │       layer 1 (song song)            │
+        │   ┌───────┬────────┬───────┐          │
+        │   ▼       ▼        ▼       │          │
+        │  P2      P3       P4       │          │
+        │   └─────── EvidenceBundle ─┴──────────┘
+        │                     │
+        │                 layer 2: P5
+        │                     │
+        │                 layer 3: P6
+        │                     │ pass only
+        │                 layer 4: Explanation Agent
+        │                     │
+        └────────────── HandoffEnvelope + Audit Timeline
+```
+
+- **AgentRegistry:** đổi agent implementation bằng configuration, không cần
+  sửa Coordinator.
+- **HandoffEnvelope:** mỗi task có agent name, dependency, payload/evidence,
+  thời điểm start/end, duration và status thành công/lỗi.
+- **TaskGraph:** P2/P3/P4 chỉ chạy song song trong layer đầu; P5 cần đủ ba
+  evidence; P6 cần policy; Explanation Agent chỉ chạy sau Verifier pass.
+- **Policy config:** thứ tự rule, cause, party, action, refund strategy nằm ở
+  `policy/EC_POLICY_V1.json`. `schemas.py` vẫn validate các canonical label.
+- **Model Gateway:** chỉ Explanation Agent được phép gọi
+  `Qwen/Qwen2.5-3B-Instruct` (3.09B) qua Ollama-compatible endpoint. Khi chưa
+  bật local Qwen, gateway trả deterministic fallback và không ảnh hưởng output.
+- **Audit Timeline:** `logging/audit_timeline.json` là dữ liệu máy đọc và
+  `logging/audit_timeline.html` là bảng trực quan để thuyết trình.
+
+## 7. Điểm mới — Evidence Receipt audit layer
+
+Sau khi Verifier pass, hệ thống tạo một **Evidence Receipt** riêng trong
+`logging/decision_certificates.jsonl`; file này không nằm trong `output.zip`.
+
+```
+OutputVerdict đã pass Verifier
+        │
+        ├── JSON nộp bài: output/EC_XXX.json
+        │
+        └── Evidence Receipt (audit/presentation)
+              - selected_policy + giải thích ngắn
+              - evidence IDs đầy đủ, có thể truy ngược CSV
+              - verifier_gate = passed
+              - SHA-256 của JSON output
+```
+
+Lớp này biến từng verdict thành một "biên nhận quyết định": người thuyết
+trình có thể chứng minh rule nào được kích hoạt, evidence nào hỗ trợ kết luận,
+và JSON nộp bài chưa bị thay đổi sau khi kiểm chứng. Decision logic vẫn là
+EC_POLICY_V1 xác định; model nhẹ chỉ dành cho lớp giải thích, không được phép
+thay đổi refund, party hay action.

@@ -7,7 +7,7 @@ assignment README.  Agent modules exchange dataclass instances, while only
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from decimal import Decimal, ROUND_HALF_UP
 import json
 from pathlib import Path
@@ -63,6 +63,49 @@ MONEY_QUANTUM = Decimal("0.01")
 
 class ContractError(ValueError):
     """Raised when data does not comply with the CP0 contract."""
+
+
+def _json_value(value: Any) -> Any:
+    """Serialize audit-only handoff payloads without changing submission JSON."""
+
+    if isinstance(value, Decimal):
+        return float(value)
+    if is_dataclass(value):
+        return _json_value(asdict(value))
+    if isinstance(value, Mapping):
+        return {str(key): _json_value(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_value(item) for item in value]
+    return value
+
+
+@dataclass(frozen=True)
+class RuleSpec:
+    """One row of the EC_POLICY_V1 priority-ordered rule table (README section 4)."""
+
+    primary_issue: str
+    root_cause_code: str
+    party_type: str | None
+    party_id: str | None  # None means "derive from evidence" (e.g. late seller_id)
+    action: str
+    case_status: str
+
+
+RULE_TABLE: tuple[RuleSpec, ...] = (
+    RuleSpec("canceled_order_paid", "ORDER_CANCELED_AFTER_PAYMENT",
+             "platform", "OLIST_PLATFORM", "issue_full_refund", ACTION_REQUIRED),
+    RuleSpec("unavailable_order_paid", "ORDER_UNAVAILABLE_AFTER_PAYMENT",
+             "platform", "OLIST_PLATFORM", "issue_full_refund", ACTION_REQUIRED),
+    RuleSpec("late_delivery_seller", "SELLER_HANDOFF_AFTER_LIMIT",
+             "seller", None, "refund_freight", ACTION_REQUIRED),
+    RuleSpec("late_delivery_logistics", "CARRIER_DELIVERED_AFTER_ESTIMATE",
+             "logistics_provider", "LOGISTICS_PROVIDER", "refund_freight", ACTION_REQUIRED),
+    RuleSpec("valid_split_payment", "MULTIPLE_PAYMENTS_RECONCILED",
+             None, None, "explain_valid_split_payment", NO_ACTION),
+    RuleSpec("unsupported_late_claim", "DELIVERY_WITHIN_ESTIMATE",
+             None, None, "reject_late_refund", NO_ACTION),
+)
+"""Priority order = list order; P5 should iterate top-to-bottom, first match wins."""
 
 
 def money(value: Decimal | int | float | str) -> Decimal:
@@ -127,6 +170,38 @@ class InputCase:
         if not isinstance(data, Mapping):
             raise ContractError(f"Input case {path} must be a JSON object")
         return cls.from_mapping(data)
+
+
+@dataclass(frozen=True)
+class HandoffEnvelope:
+    """Auditable result of one registered agent task in the runtime DAG."""
+
+    agent_name: str
+    case_id: str
+    stage: str
+    status: str
+    started_at: str
+    finished_at: str
+    duration_ms: float
+    depends_on: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+    payload: Any
+    error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "agent_name": self.agent_name,
+            "case_id": self.case_id,
+            "stage": self.stage,
+            "status": self.status,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "duration_ms": round(self.duration_ms, 3),
+            "depends_on": list(self.depends_on),
+            "evidence_ids": list(self.evidence_ids),
+            "payload": _json_value(self.payload),
+            "error": self.error,
+        }
 
 
 @dataclass(frozen=True)
@@ -311,4 +386,34 @@ class OutputVerdict:
             "evidence_ids": list(self.evidence_ids),
             "financial_resolution": dict(self.financial_resolution),
             "resolution_actions": list(self.resolution_actions),
+        }
+
+
+@dataclass(frozen=True)
+class TraceEntry:
+    """One line of ``logging/trace.jsonl`` — the real execution trace of a case."""
+
+    case_id: str
+    claimed_order_id: str
+    agents_called: tuple[str, ...]
+    status: str  # "written" | "verification_failed" | "error"
+    primary_issue: str | None
+    case_status: str | None
+    recommended_refund_brl: str | None
+    verifier_errors: tuple[str, ...]
+    error: str | None
+    timestamp: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "case_id": self.case_id,
+            "claimed_order_id": self.claimed_order_id,
+            "agents_called": list(self.agents_called),
+            "status": self.status,
+            "primary_issue": self.primary_issue,
+            "case_status": self.case_status,
+            "recommended_refund_brl": self.recommended_refund_brl,
+            "verifier_errors": list(self.verifier_errors),
+            "error": self.error,
+            "timestamp": self.timestamp,
         }

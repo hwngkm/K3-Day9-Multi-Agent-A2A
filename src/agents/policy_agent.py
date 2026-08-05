@@ -60,7 +60,6 @@ def _refund(rule: ConfiguredRule, evidence: EvidenceBundle) -> Decimal:
 
 def analyze(evidence: EvidenceBundle) -> PolicyResult:
     """Apply externally configured policy rules in their declared priority order."""
-
     for rule in load_policy_rules():
         if _matches(rule, evidence):
             return PolicyResult(

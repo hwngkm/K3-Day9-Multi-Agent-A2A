@@ -26,23 +26,10 @@ def _unique(values: list[str]) -> tuple[str, ...]:
 def analyze(case: InputCase, loader: OlistDataLoader) -> OrderSellerEvidence:
     """Return order/item/seller evidence for ``case.claimed_order_id``.
 
-    Field contract (see src/schemas.py:OrderSellerEvidence):
-    - order_status: raw ``orders.csv`` order_status value for this order.
-    - item_ids: ``"<order_id>:<order_item_id>"`` per item (no "item:" prefix,
-      max 5) -> feeds affected_entities.item_ids directly.
-    - seller_ids: unique seller_id values across the order's items (max 5).
-    - seller_handoff_late: True if ANY item's
-      ``order_delivered_carrier_date > that item's shipping_limit_date``.
-    - late_seller_ids: seller_id(s) responsible for a late handoff (subset of
-      seller_ids). README confirms the official 50 cases have no ambiguous
-      multi-seller ties.
-    - evidence_ids: ``"order:<order_id>"``, ``"item:<order_id>:<n>"`` per item,
-      ``"seller:<seller_id>"`` per unique seller — must be real IDs verifiable
-      against the CSVs (Verifier Agent will check this).
-
-    If the order has no item rows (real in the dataset: unavailable orders),
-    return item_ids=(), seller_ids=(), seller_handoff_late=False,
-    late_seller_ids=(), evidence_ids=("order:<order_id>",).
+    This deterministic implementation is the active runtime for the submitted
+    verdict: CSV facts remain reproducible even when no local LLM is running.
+    The separately merged ``src.tools.order_seller_tool`` remains available as
+    an optional audited tool interface for future model-assisted explanation.
     """
     order_id = case.claimed_order_id
     order = loader.require_order(order_id)

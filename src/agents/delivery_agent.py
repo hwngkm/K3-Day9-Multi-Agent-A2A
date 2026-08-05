@@ -2,8 +2,7 @@
 P3 — Delivery Agent
 Interface : analyze(case: InputCase, loader: OlistDataLoader) -> DeliveryEvidence
 Đọc      : orders.csv (qua loader)
-Không đọc: payment, sellers, products, order_items
-LLM model: llama-3.1-8b-instant via Groq (hard-coded, ≤10B params)
+LLM model: abab6.5s-chat via Minimax (OpenAI SDK compatible)
 """
 
 from __future__ import annotations
@@ -14,98 +13,79 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from groq import Groq
+from openai import OpenAI
 from dotenv import load_dotenv
 
 from ..data_loader import OlistDataLoader
 from ..schemas import DeliveryEvidence, InputCase
 
-# Load .env từ root repo (2 levels up: agents/ -> src/ -> root)
 _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(dotenv_path=_ENV_PATH)
 
-# ── Hard-coded model name (bắt buộc theo README mục 9, không để vào .env) ──
-MODEL_NAME = "llama-3.1-8b-instant"
-
+MODEL_NAME = "MiniMax-M2.5-highspeed"
 logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """You are the Delivery Agent in an e-commerce dispute resolution pipeline.
 
-You are given order delivery data and the COMPUTED result of whether the delivery was late.
-Your task: write a clear, concise ONE-sentence explanation of why the delivery is late or on time.
+Your task is to determine if the order was delivered AFTER the estimated delivery date.
+You are given the delivery date and estimated date in ISO format.
 
-The 'carrier_delivered_late' field is already computed for you (do NOT change it).
-Just confirm it and explain the date comparison in plain language.
+Rules:
+1. Compare order_delivered_customer_date vs order_estimated_delivery_date.
+2. If order_delivered_customer_date is missing/empty → carrier_delivered_late = false
+3. If order_estimated_delivery_date is missing/empty → carrier_delivered_late = false  
+4. If order_status is "canceled" or "unavailable" → carrier_delivered_late = false
+5. Otherwise: carrier_delivered_late = (delivered date > estimated date)
 
+Think carefully step by step, then output the final decision.
 Reply with ONLY valid JSON, no markdown fences, no extra text:
-{"carrier_delivered_late": <bool as given>, "reasoning": "<one sentence explanation>"}
+{"reasoning": "<step by step thought process>", "carrier_delivered_late": <true|false>}
 """
 
-
 def analyze(case: InputCase, loader: OlistDataLoader) -> DeliveryEvidence:
-    """Entry point called by Coordinator (parallel with P2 and P4)."""
     order_id = case.claimed_order_id
     order_row = dict(loader.require_order(order_id))
 
-    raw = _extract_fields(order_row, order_id)
+    raw = {
+        "order_id": order_id,
+        "order_status": order_row.get("order_status", ""),
+        "order_delivered_customer_date": order_row.get("order_delivered_customer_date", ""),
+        "order_estimated_delivery_date": order_row.get("order_estimated_delivery_date", ""),
+        "order_delivered_carrier_date": order_row.get("order_delivered_carrier_date", ""),
+    }
 
-    # Python computes the authoritative boolean (always accurate)
-    python_result = _python_compute(raw)
-
-    # LLM generates the reasoning explanation (and confirms boolean)
-    llm_result = _call_llm(raw, python_result["carrier_delivered_late"])
-    if llm_result.get("carrier_delivered_late") != python_result["carrier_delivered_late"]:
-        logger.warning(
-            "[DeliveryAgent] LLM disagreed with Python computation (LLM=%s, Python=%s) "
-            "— trusting Python for order %s",
-            llm_result.get("carrier_delivered_late"),
-            python_result["carrier_delivered_late"],
-            order_id,
-        )
+    # Agent is fully driven by LLM decision
+    llm_result = _call_llm(raw)
 
     return DeliveryEvidence(
         order_id=order_id,
-        carrier_delivered_late=python_result["carrier_delivered_late"],
+        carrier_delivered_late=bool(llm_result.get("carrier_delivered_late", False)),
         order_delivered_carrier_date=raw["order_delivered_carrier_date"] or None,
         order_delivered_customer_date=raw["order_delivered_customer_date"] or None,
         order_estimated_delivery_date=raw["order_estimated_delivery_date"] or None,
         evidence_ids=(f"order:{order_id}",),
     )
 
-
-def _extract_fields(row: dict, order_id: str) -> dict:
-    return {
-        "order_id": order_id,
-        "order_status": row.get("order_status", ""),
-        "order_delivered_customer_date": row.get("order_delivered_customer_date", ""),
-        "order_estimated_delivery_date": row.get("order_estimated_delivery_date", ""),
-        "order_delivered_carrier_date": row.get("order_delivered_carrier_date", ""),
-    }
-
-
-def _call_llm(raw: dict, computed_late: bool) -> dict:
-    """Gọi Groq LLM để lấy reasoning. Fallback nếu lỗi."""
-    api_key = os.environ.get("GROQ_API_KEY")
+def _call_llm(raw: dict) -> dict:
+    api_key = os.environ.get("MINIMAX_API_KEY")
     if not api_key:
-        logger.warning("[DeliveryAgent] GROQ_API_KEY not set, skipping LLM call")
-        return {"carrier_delivered_late": computed_late, "reasoning": "API key not set"}
-
-    user_msg = dict(raw)
-    user_msg["carrier_delivered_late"] = computed_late  # tell LLM the computed answer
+        logger.warning("[DeliveryAgent] MINIMAX_API_KEY not set, using Python fallback")
+        return _python_fallback(raw)
 
     try:
-        client = Groq(api_key=api_key)
+        client = OpenAI(api_key=api_key, base_url="https://api.minimax.io/v1")
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(user_msg, ensure_ascii=False)},
+                {"role": "user", "content": json.dumps(raw, ensure_ascii=False)},
             ],
-            temperature=0.0,
-            max_tokens=128,
+            temperature=0.1,
+            max_tokens=2048,
         )
+        import re
         text = response.choices[0].message.content.strip()
-        # Strip markdown fences if present
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
         if text.startswith("```"):
             text = text.split("```")[1]
             if text.startswith("json"):
@@ -113,12 +93,11 @@ def _call_llm(raw: dict, computed_late: bool) -> dict:
         text = text.strip()
         return json.loads(text)
     except Exception as exc:
-        logger.warning("[DeliveryAgent] LLM call failed (%s), using Python result only", exc)
-        return {"carrier_delivered_late": computed_late, "reasoning": f"LLM unavailable: {type(exc).__name__}"}
+        logger.warning("[DeliveryAgent] LLM call failed (%s), using Python fallback", exc)
+        return _python_fallback(raw)
 
-
-def _python_compute(raw: dict) -> dict:
-    """Deterministic, authoritative computation of carrier_delivered_late."""
+def _python_fallback(raw: dict) -> dict:
+    """Fallback only when API crashes or rate limits."""
     status = raw.get("order_status", "")
     if status in ("canceled", "unavailable"):
         return {"carrier_delivered_late": False, "reasoning": f"Order status is {status}"}
@@ -129,12 +108,9 @@ def _python_compute(raw: dict) -> dict:
             return {"carrier_delivered_late": False, "reasoning": "Missing timestamp(s)"}
         delivered = datetime.fromisoformat(delivered_str)
         estimated = datetime.fromisoformat(estimated_str)
-        late = delivered > estimated
-        delta = (delivered - estimated).total_seconds() / 86400
         return {
-            "carrier_delivered_late": late,
-            "reasoning": f"Delivered {delivered_str[:10]}, estimated {estimated_str[:10]}, delta {delta:+.2f} days",
+            "carrier_delivered_late": delivered > estimated,
+            "reasoning": "Fallback Python logic"
         }
-    except (ValueError, KeyError, TypeError) as exc:
-        logger.error("[DeliveryAgent] Computation error: %s", exc)
-        return {"carrier_delivered_late": False, "reasoning": "Parse error, defaulting to not late"}
+    except Exception:
+        return {"carrier_delivered_late": False, "reasoning": "Fallback parse error"}

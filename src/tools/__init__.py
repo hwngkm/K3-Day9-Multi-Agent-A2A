@@ -1,11 +1,11 @@
-"""Deterministic data tools exposed to the domain agents."""
+"""Deterministic data tools available to domain agents and demos."""
 
-from .order_seller_tool import OrderSellerTool, query_order_seller
 from .delivery_tool import DeliveryTool, query_delivery
+from .order_seller_tool import OrderSellerTool, query_order_seller
 
 __all__ = [
-    "OrderSellerTool",
-    "query_order_seller",
     "DeliveryTool",
+    "OrderSellerTool",
     "query_delivery",
+    "query_order_seller",
 ]

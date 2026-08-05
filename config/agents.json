@@ -1,0 +1,46 @@
+{
+  "agents": [
+    {
+      "name": "order_seller",
+      "module": "src.agents.order_seller_agent",
+      "callable": "analyze",
+      "stage": "evidence",
+      "depends_on": []
+    },
+    {
+      "name": "delivery",
+      "module": "src.agents.delivery_agent",
+      "callable": "analyze",
+      "stage": "evidence",
+      "depends_on": []
+    },
+    {
+      "name": "payment",
+      "module": "src.agents.payment_agent",
+      "callable": "analyze",
+      "stage": "evidence",
+      "depends_on": []
+    },
+    {
+      "name": "policy",
+      "module": "src.agents.policy_agent",
+      "callable": "analyze",
+      "stage": "policy",
+      "depends_on": ["order_seller", "delivery", "payment"]
+    },
+    {
+      "name": "verifier",
+      "module": "src.agents.verifier_agent",
+      "callable": "verify",
+      "stage": "verifier",
+      "depends_on": ["policy"]
+    },
+    {
+      "name": "explanation",
+      "module": "src.agents.explanation_agent",
+      "callable": "analyze",
+      "stage": "explanation",
+      "depends_on": ["verifier"]
+    }
+  ]
+}

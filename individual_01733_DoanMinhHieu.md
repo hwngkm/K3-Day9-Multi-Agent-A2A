@@ -24,7 +24,7 @@
 
 | Hoạt động                 | Thành viên/module được hỗ trợ | Kết quả                 |
 | ------------------------- | ----------------------------- | ----------------------- |
-| Kiểm tra tích hợp CP0     | Coordinator + schema          | Đảm bảo `PolicyResult` được dùng đúng | 
+| Kiểm tra tích hợp CP0     | Coordinator + schema          | Đảm bảo `PolicyResult` được dùng đúng |
 | Gợi ý cấu trúc module     | Các agent khác                | Mở đường cho P2/P3/P4 không đọc CSV thô |
 
 ## 3. Kết quả theo vai trò

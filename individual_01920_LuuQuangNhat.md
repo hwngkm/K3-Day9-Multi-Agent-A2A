@@ -61,5 +61,5 @@ LLM phù hợp để điều phối và chọn thông tin liên quan, nhưng cá
 
 Tôi xác nhận nội dung trên phản ánh đúng phần việc đã thực hiện. Báo cáo không chứa API key, token hoặc thông tin bí mật.
 
-**Họ và tên:** Lưu Quang Nhật  
+**Họ và tên:** Lưu Quang Nhật
 **MSSV:** 2A202601920

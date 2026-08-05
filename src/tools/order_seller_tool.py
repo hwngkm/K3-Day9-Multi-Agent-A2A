@@ -221,4 +221,3 @@ class OrderSellerTool:
         """Return verified Order/Seller facts for one claimed order ID."""
 
         return query_order_seller(claimed_order_id, self._loader)
-

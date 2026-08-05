@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="890" viewBox="0 0 1200 890" role="img" aria-labelledby="title desc">
+  <title id="title">Luồng xử lý Hybrid Multi-Agent</title>
+  <desc id="desc">Input được Coordinator điều phối tới ba agent chạy song song, sau đó qua Policy, Verifier, Output ZIP và Explanation Audit.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+    <style>
+      .title { font: 700 27px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 16px Arial, sans-serif; fill: #475569; }
+      .box-title { font: 700 17px Arial, sans-serif; fill: #0f172a; }
+      .box-text { font: 14px Arial, sans-serif; fill: #334155; }
+      .small { font: 13px Arial, sans-serif; fill: #475569; }
+      .line { stroke: #334155; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #64748b; stroke-width: 2; fill: none; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="890" fill="#f8fafc"/>
+  <text x="600" y="48" text-anchor="middle" class="title">Luồng xử lý Hybrid Multi-Agent</text>
+  <text x="600" y="76" text-anchor="middle" class="subtitle">Quyết định dựa trên CSV và policy; Qwen chỉ giải thích sau khi đã kiểm chứng</text>
+
+  <rect x="470" y="105" width="260" height="76" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="600" y="137" text-anchor="middle" class="box-title">Input case JSON</text>
+  <text x="600" y="161" text-anchor="middle" class="box-text">EC_001.json … EC_050.json</text>
+
+  <path d="M600 181 V220" class="line"/>
+  <rect x="430" y="220" width="340" height="82" rx="14" fill="#e0e7ff" stroke="#4f46e5" stroke-width="2"/>
+  <text x="600" y="252" text-anchor="middle" class="box-title">P1 — Coordinator</text>
+  <text x="600" y="276" text-anchor="middle" class="box-text">Đọc AgentRegistry và điều phối TaskGraph</text>
+
+  <rect x="44" y="345" width="320" height="120" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="204" y="378" text-anchor="middle" class="box-title">P2 — Order &amp; Seller</text>
+  <text x="204" y="404" text-anchor="middle" class="box-text">Order, item, seller, shipping limit</text>
+  <text x="204" y="428" text-anchor="middle" class="small">Seller có bàn giao trễ không?</text>
+
+  <rect x="440" y="345" width="320" height="120" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="600" y="378" text-anchor="middle" class="box-title">P3 — Delivery</text>
+  <text x="600" y="404" text-anchor="middle" class="box-text">Ngày giao thực tế và ngày dự kiến</text>
+  <text x="600" y="428" text-anchor="middle" class="small">Khách có nhận hàng trễ không?</text>
+
+  <rect x="836" y="345" width="320" height="120" rx="14" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="996" y="378" text-anchor="middle" class="box-title">P4 — Payment</text>
+  <text x="996" y="404" text-anchor="middle" class="box-text">Payment, giá item và phí ship</text>
+  <text x="996" y="428" text-anchor="middle" class="small">Tổng tiền và split payment</text>
+
+  <text x="600" y="329" text-anchor="middle" class="small">Ba agent chạy song song</text>
+  <path d="M520 302 V325 H204 V345" class="line"/>
+  <path d="M600 302 V345" class="line"/>
+  <path d="M680 302 V325 H996 V345" class="line"/>
+
+  <path d="M204 465 V500 H600 V525" class="line"/>
+  <path d="M600 465 V525" class="line"/>
+  <path d="M996 465 V500 H600" class="line"/>
+  <rect x="435" y="525" width="330" height="72" rx="14" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="600" y="555" text-anchor="middle" class="box-title">EvidenceBundle</text>
+  <text x="600" y="579" text-anchor="middle" class="box-text">Bằng chứng có ID truy ngược về CSV</text>
+
+  <path d="M600 597 V630" class="line"/>
+  <rect x="410" y="630" width="380" height="82" rx="14" fill="#ffedd5" stroke="#ea580c" stroke-width="2"/>
+  <text x="600" y="662" text-anchor="middle" class="box-title">P5 — Policy Agent</text>
+  <text x="600" y="686" text-anchor="middle" class="box-text">Áp dụng EC_POLICY_V1: nguyên nhân, bên chịu trách nhiệm, refund, action</text>
+
+  <path d="M600 712 V745" class="line"/>
+  <rect x="410" y="745" width="380" height="82" rx="14" fill="#fce7f3" stroke="#db2777" stroke-width="2"/>
+  <text x="600" y="777" text-anchor="middle" class="box-title">P6 — Verifier</text>
+  <text x="600" y="801" text-anchor="middle" class="box-text">Kiểm tra lại CSV, evidence ID, tiền và schema</text>
+
+  <path d="M790 786 H925" class="line"/>
+  <rect x="925" y="745" width="230" height="82" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="1040" y="777" text-anchor="middle" class="box-title">Pass → Output ZIP</text>
+  <text x="1040" y="801" text-anchor="middle" class="box-text">50 JSON chuẩn để nộp</text>
+
+  <path d="M410 786 H285" class="dash"/>
+  <rect x="45" y="745" width="240" height="82" rx="14" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="165" y="777" text-anchor="middle" class="box-title">Fail → Coordinator</text>
+  <text x="165" y="801" text-anchor="middle" class="box-text">Không được ghi vào output</text>
+
+  <path d="M1040 827 V855" class="dash"/>
+  <text x="1040" y="879" text-anchor="middle" class="small">Qwen 3B chỉ giải thích cho Audit Timeline</text>
+</svg>
